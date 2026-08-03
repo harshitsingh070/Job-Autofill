@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Job Autofill — My Profile</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>My Profile</h1>
+    <p class="sub">Fill this out once. The extension uses it to autofill job & internship applications.</p>
+    <div id="formGroups"></div>
+
+    <div class="custom-section">
+      <h2>Custom fields</h2>
+      <p class="sub">Add anything not covered above (e.g. "Why this company?", visa type, etc). These also show up when mapping unmatched fields.</p>
+      <div id="customFields"></div>
+      <button id="addCustomBtn" class="secondary">+ Add custom field</button>
+    </div>
+
+    <div class="save-bar">
+      <button id="saveBtn" class="primary">Save profile</button>
+      <span id="saveStatus"></span>
+    </div>
+  </div>
+  <script src="schema.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
