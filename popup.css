@@ -6,9 +6,21 @@ body {
   background: #fafafa;
 }
 .wrap { padding: 16px; }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px 0;
+}
+.brand .logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
 h1 {
   font-size: 15px;
-  margin: 0 0 12px 0;
+  margin: 0;
   color: #1e1b4b;
 }
 button {
@@ -27,6 +39,11 @@ button {
   font-size: 14px;
 }
 .primary:hover { background: #4338ca; }
+.learn {
+  margin-top: 8px;
+  background: #16a34a;
+}
+.learn:hover { background: #15803d; }
 .status {
   margin-top: 10px;
   font-size: 12.5px;

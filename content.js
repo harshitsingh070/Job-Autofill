@@ -1,6 +1,9 @@
 (function () {
   const DOMAIN = location.hostname;
 
+  // Performance guard: exit early on pages without form inputs
+  if (!document.querySelector("input, textarea, select, form")) return;
+
   function normalize(s) {
     return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   }
@@ -58,6 +61,7 @@
     const parts = [];
     if (ctx.label) parts.push(ctx.label);
     if (ctx.name) parts.push(ctx.name);
+    if (ctx.placeholder) parts.push(ctx.placeholder);
     return normalize(parts.join(" ")).slice(0, 80) || "field_" + (ctx.id || "unknown");
   }
 
@@ -209,6 +213,161 @@
     document.body.appendChild(badge);
   }
 
+  function getFilledFields() {
+    return getAllFields().filter(el => {
+      if (el.disabled) return false;
+      if (el.tagName === "SELECT") return el.selectedIndex > 0 && String(el.value || "").trim() !== "";
+      return String(el.value || "").trim() !== "";
+    });
+  }
+
+  function buildLearnRow(el, ctx) {
+    const row = document.createElement("div");
+    row.className = "jaf-learn-row";
+
+    const labelEl = document.createElement("div");
+    labelEl.className = "jaf-learn-label";
+    labelEl.textContent = ctx.label || ctx.name || ctx.placeholder || ctx.id || "Untitled field";
+    row.appendChild(labelEl);
+
+    const valueInput = document.createElement("input");
+    valueInput.className = "jaf-learn-value";
+    valueInput.value = el.tagName === "SELECT" ? el.options[el.selectedIndex]?.text : el.value;
+    row.appendChild(valueInput);
+
+    const select = document.createElement("select");
+    select.className = "jaf-learn-select";
+    appendSchemaOptions(select);
+    row.appendChild(select);
+
+    return { row, labelEl, valueInput, select, sig: signature(ctx), guessed: null };
+  }
+
+  function groupSchemaOptions() {
+    const groups = {};
+    PROFILE_SCHEMA.forEach(item => {
+      if (!groups[item.group]) groups[item.group] = [];
+      groups[item.group].push(item);
+    });
+    return groups;
+  }
+
+  function appendSchemaOptions(select) {
+    const newOpt = document.createElement("option");
+    newOpt.value = "__new__";
+    newOpt.textContent = "➕ New profile field (auto-create)";
+    select.appendChild(newOpt);
+    const groups = groupSchemaOptions();
+    Object.keys(groups).forEach(groupName => {
+      const og = document.createElement("optgroup");
+      og.label = groupName;
+      groups[groupName].forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.key;
+        opt.textContent = item.label;
+        og.appendChild(opt);
+      });
+      select.appendChild(og);
+    });
+  }
+
+  async function openLearnPanel() {
+    document.querySelectorAll(".jaf-learn-panel").forEach(n => n.remove());
+    const { learnedMappings, fullSchema } = await getStorage();
+    const entries = getFilledFields().map(el => {
+      const ctx = getFieldContext(el);
+      const { key } = resolveKeyForField(ctx, learnedMappings);
+      const e = buildLearnRow(el, ctx);
+      // pre-select the guessed key when we can resolve one
+      if (key && fullSchema.some(item => item.key === key)) e.select.value = key;
+      return e;
+    });
+
+    if (entries.length === 0) return 0;
+
+    const panel = document.createElement("div");
+    panel.className = "jaf-learn-panel";
+
+    const header = document.createElement("div");
+    header.className = "jaf-learn-header";
+    const title = document.createElement("span");
+    title.className = "jaf-learn-title";
+    title.textContent = "Learn from this form";
+    const close = document.createElement("button");
+    close.className = "jaf-learn-close";
+    close.textContent = "✕";
+    close.addEventListener("click", () => panel.remove());
+    header.appendChild(title);
+    header.appendChild(close);
+    panel.appendChild(header);
+
+    const sub = document.createElement("p");
+    sub.className = "jaf-learn-sub";
+    sub.textContent = `Found ${entries.length} filled field(s). Pick where each should be saved — it will autofill the same fields next time.`;
+    panel.appendChild(sub);
+
+    const body = document.createElement("div");
+    body.className = "jaf-learn-body";
+    entries.forEach(e => body.appendChild(e.row));
+    panel.appendChild(body);
+
+    const footer = document.createElement("div");
+    footer.className = "jaf-learn-footer";
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "jaf-learn-save";
+    saveBtn.textContent = "✓ Save to my profile";
+    const statusEl = document.createElement("span");
+    statusEl.className = "jaf-learn-status";
+    footer.appendChild(saveBtn);
+    footer.appendChild(statusEl);
+    panel.appendChild(footer);
+
+    saveBtn.addEventListener("click", async () => {
+      const done = await saveLearnEntries(entries);
+      statusEl.textContent = `Saved ${done.savedCount} value(s), ${done.createdCount} new field(s).`;
+      setTimeout(() => panel.remove(), 1800);
+    });
+
+    document.body.appendChild(panel);
+    return entries.length;
+  }
+
+  async function saveLearnEntries(entries) {
+    const data = await getStorage();
+    const profile = data.profile;
+    const learned = data.learnedMappings;
+    const customSchema = data.fullSchema.slice(PROFILE_SCHEMA.length);
+    let savedCount = 0;
+    let createdCount = 0;
+
+    entries.forEach((e, idx) => {
+      if (!e.row.isConnected) return;
+      const value = e.valueInput.value.trim();
+      if (!value) return;
+      let key = e.select.value;
+      if (key === "__new__") {
+        key = "custom_" + Date.now() + "_" + idx;
+        profile[key] = value;
+        if (!customSchema.find(c => c.key === key)) {
+          customSchema.push({ key, label: e.labelEl.textContent.trim() || "Custom field", group: "Custom" });
+        }
+        createdCount++;
+      } else {
+        profile[key] = value;
+      }
+      if (!learned[DOMAIN]) learned[DOMAIN] = {};
+      if (!learned["_global"]) learned["_global"] = {};
+      learned[DOMAIN][e.sig] = key;
+      learned["_global"][e.sig] = key;
+      savedCount++;
+    });
+
+    if (savedCount > 0) {
+      await new Promise(resolve => chrome.storage.local.set({ profile, learnedMappings: learned, customSchema }, resolve));
+    }
+    return { savedCount, createdCount };
+  }
+
   async function runAutofill() {
     removeAllBadges();
     const { profile, learnedMappings, fullSchema } = await getStorage();
@@ -239,14 +398,25 @@
       runAutofill().then(sendResponse);
       return true; // async response
     }
+    if (msg.type === "OPEN_LEARN_PANEL") {
+      openLearnPanel().then(count => sendResponse({ fields: count }));
+      return true; // async response
+    }
     if (msg.type === "CLEAR_BADGES") {
       removeAllBadges();
       sendResponse({ ok: true });
     }
   });
 
-  // Reposition badges on scroll/resize
-  window.addEventListener("scroll", () => {
-    document.querySelectorAll(".jaf-badge").forEach(b => b.remove());
-  }, true);
+  // Reposition/remove badges on scroll/resize with debounce
+  let badgeClearTimeout = null;
+  function scheduleClearBadges() {
+    if (badgeClearTimeout) clearTimeout(badgeClearTimeout);
+    badgeClearTimeout = setTimeout(() => {
+      document.querySelectorAll(".jaf-badge").forEach(b => b.remove());
+      badgeClearTimeout = null;
+    }, 150);
+  }
+  window.addEventListener("scroll", scheduleClearBadges, true);
+  window.addEventListener("resize", scheduleClearBadges);
 })();

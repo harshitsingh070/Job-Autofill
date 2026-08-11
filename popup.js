@@ -4,27 +4,51 @@ function setStatus(text) {
   statusEl.textContent = text;
 }
 
+let statusTimeout = null;
+function setStatusWithTimeout(text, clearMs = 4000) {
+  statusEl.textContent = text;
+  if (statusTimeout) clearTimeout(statusTimeout);
+  if (clearMs) statusTimeout = setTimeout(() => { statusEl.textContent = ""; statusTimeout = null; }, clearMs);
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
 }
 
 document.getElementById("fillBtn").addEventListener("click", async () => {
-  setStatus("Filling...");
+  setStatusWithTimeout("Filling...");
   const tab = await getActiveTab();
-  if (!tab || !tab.id) { setStatus("No active tab found."); return; }
+  if (!tab || !tab.id) { setStatusWithTimeout("No active tab found."); return; }
   chrome.tabs.sendMessage(tab.id, { type: "AUTOFILL" }, (response) => {
     if (chrome.runtime.lastError) {
-      setStatus("Couldn't reach this page. Try reloading it.");
+      setStatusWithTimeout("Couldn't reach this page. Try reloading it.");
       return;
     }
-    if (!response) { setStatus("No response from page."); return; }
+    if (!response) { setStatusWithTimeout("No response from page."); return; }
     const { filledCount, unmatchedCount } = response;
     if (filledCount === 0 && unmatchedCount === 0) {
-      setStatus("No fillable fields found on this page.");
+      setStatusWithTimeout("No fillable fields found on this page.");
     } else {
-      setStatus(`Filled ${filledCount} field(s). ${unmatchedCount} need mapping — look for the “+” badges.`);
+      setStatusWithTimeout(`Filled ${filledCount} field(s). ${unmatchedCount} need mapping — look for the “+” badges.`);
     }
+  });
+});
+
+document.getElementById("learnBtn").addEventListener("click", async () => {
+  setStatusWithTimeout("Scanning form...");
+  const tab = await getActiveTab();
+  if (!tab || !tab.id) { setStatusWithTimeout("No active tab found."); return; }
+  chrome.tabs.sendMessage(tab.id, { type: "OPEN_LEARN_PANEL" }, (response) => {
+    if (chrome.runtime.lastError) {
+      setStatusWithTimeout("Couldn't reach this page. Try reloading it.");
+      return;
+    }
+    if (!response || response.fields === 0) {
+      setStatusWithTimeout("No filled fields found. Type into the form first, then click again.");
+      return;
+    }
+    setStatusWithTimeout(`Found ${response.fields} filled field(s) on this page. Choose where to save each one.`);
   });
 });
 
@@ -40,7 +64,7 @@ document.getElementById("clearSiteBtn").addEventListener("click", async () => {
     const learned = data.learnedMappings || {};
     delete learned[domain];
     chrome.storage.local.set({ learnedMappings: learned }, () => {
-      setStatus(`Forgot learned mappings for ${domain}.`);
+      setStatusWithTimeout(`Forgot learned mappings for ${domain}.`);
     });
   });
 });

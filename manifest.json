@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Job Application Autofill",
+  "name": "JOBFILL",
+  "short_name": "JOBFILL",
   "version": "1.0.0",
   "description": "Save your details once, then autofill job & internship application forms in one click. Learns new fields as you go.",
   "permissions": [
@@ -12,6 +13,7 @@
     "<all_urls>"
   ],
   "action": {
+    "default_title": "JOBFILL — Autofill forms",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "autofill-logo.png",

@@ -6,14 +6,21 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Job Autofill</h1>
-    <button id="fillBtn" class="primary">⚡ Autofill this page</button>
+    <div class="brand">
+      <img src="autofill-logo.png" alt="Logo" class="logo" />
+      <h1>JOBFILL</h1>
+    </div>
+    <button id="fillBtn" class="primary" aria-label="Autofill this page" title="Autofill this page">⚡ Autofill this page</button>
     <div id="status" class="status"></div>
     <div class="row">
-      <button id="editProfileBtn" class="secondary">Edit my profile</button>
-      <button id="clearSiteBtn" class="link">Forget mappings for this site</button>
+      <button id="learnBtn" class="primary learn" aria-label="Learn mappings from this form" title="Learn mappings from this form">📥 Learn from this form</button>
     </div>
-    <p class="hint">Unmatched fields get a small "+" badge next to them — click it once to teach the extension, and it'll remember for next time.</p>
+    <div class="row">
+      <button id="editProfileBtn" class="secondary" aria-label="Edit profile">Edit my profile</button>
+      <button id="clearSiteBtn" class="link" aria-label="Forget mappings for this site">Forget mappings for this site</button>
+    </div>
+    <p class="hint">Unmatched fields get a small "+" badge — click it to map the field to your profile. Edit your profile via the "Edit my profile" button.</p>
+    <p class="hint small">Tip: Pin the JOBFILL icon and keep your profile up to date for best results.</p>
   </div>
   <script src="popup.js"></script>
 </body>

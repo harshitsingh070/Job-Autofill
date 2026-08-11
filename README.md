@@ -1,4 +1,4 @@
-# Job Application Autofill
+# JOBFILL
 
 A Chrome/Edge extension that remembers your details and fills them into job & internship application forms.
 
@@ -8,7 +8,13 @@ A Chrome/Edge extension that remembers your details and fills them into job & in
 2. Open `chrome://extensions` (or `edge://extensions`).
 3. Turn on **Developer mode** (top-right toggle).
 4. Click **Load unpacked**, and select this folder.
-5. Pin the extension icon (puzzle-piece icon in the toolbar → pin "Job Application Autofill").
+5. Pin the extension icon (puzzle-piece icon in the toolbar → pin "JOBFILL").
+
+## Quick tips
+
+- Keep your profile up to date via the "Edit my profile" button — JOBFILL uses this to fill forms.
+- Click ⚡ in the popup to autofill the current page; click 📥 "Learn from this form" after you type values to save them.
+- If a site changes, use "Forget mappings for this site" to reset learned mappings for that domain.
 
 ## Set up your profile
 
@@ -33,4 +39,4 @@ A Chrome/Edge extension that remembers your details and fills them into job & in
 - All data stays in your browser's local storage — nothing is sent anywhere.
 - "Forget mappings for this site" (in the popup) resets learned mappings if a site changes its form.
 
-# Job-Autofill
+# JOBFILL
