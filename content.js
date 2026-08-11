@@ -19,29 +19,49 @@
     el.blur();
   }
 
+  function cleanLabelText(text) {
+    const cleaned = (text || "").replace(/\s+/g, " ").trim();
+    if (!cleaned) return "";
+    if (/__label/i.test(cleaned)) return "";
+    if (/^(custom|field|fld|question)?[_\-0-9]+$/.test(cleaned)) return "";
+    if (/^[a-f0-9]{12,}$/i.test(cleaned)) return "";
+    return cleaned;
+  }
+
   function getLabelText(el) {
-    if (el.labels && el.labels.length) return el.labels[0].innerText;
+    const candidates = [];
+    if (el.labels && el.labels.length) candidates.push(el.labels[0].innerText);
     const aria = el.getAttribute("aria-label");
-    if (aria) return aria;
+    if (aria) candidates.push(aria);
     const labelledBy = el.getAttribute("aria-labelledby");
     if (labelledBy) {
       const texts = labelledBy.split(/\s+/).map(id => {
         const d = document.getElementById(id);
         return d ? d.innerText : "";
       }).filter(Boolean);
-      if (texts.length > 0) return texts.join(" ");
+      if (texts.length > 0) candidates.push(texts.join(" "));
     }
     const describedBy = el.getAttribute("aria-describedby");
     if (describedBy) {
       const d = document.getElementById(describedBy);
-      if (d) return d.innerText;
+      if (d) candidates.push(d.innerText);
     }
     const closestLabel = el.closest("label");
-    if (closestLabel) return closestLabel.innerText;
-    // Try previous element
+    if (closestLabel) candidates.push(closestLabel.innerText);
     let prev = el.previousElementSibling;
-    if (prev && (prev.tagName === "LABEL" || prev.tagName === "SPAN")) {
-      return prev.innerText;
+    if (prev && (prev.tagName === "LABEL" || prev.tagName === "SPAN")) candidates.push(prev.innerText);
+    for (const c of candidates) {
+      const cleaned = cleanLabelText(c);
+      if (cleaned) return cleaned;
+    }
+    // Last resort: look for a human-readable label inside the field container
+    const container = el.closest("[class*='field'], [class*='form-'], [class*='question'], [class*='form_row']");
+    if (container) {
+      const l = container.querySelector("label, [class*='label'], [class*='question'], [class*='prompt']");
+      if (l) {
+        const cleaned = cleanLabelText(l.innerText);
+        if (cleaned) return cleaned;
+      }
     }
     return "";
   }
@@ -275,10 +295,15 @@
     });
   }
 
-  function resolveKeyForField(ctx, learnedMappings) {
+  function resolveKeyForField(ctx, learnedMappings, fullSchema) {
     const sig = signature(ctx);
     if (learnedMappings[DOMAIN] && learnedMappings[DOMAIN][sig]) return { key: learnedMappings[DOMAIN][sig], sig };
     if (learnedMappings["_global"] && learnedMappings["_global"][sig]) return { key: learnedMappings["_global"][sig], sig };
+    if (fullSchema && ctx.label) {
+      const norm = normalize(ctx.label);
+      const exact = fullSchema.find(item => normalize(item.label) === norm || normalize(item.key) === norm);
+      if (exact) return { key: exact.key, sig };
+    }
     const guessed = guessKeyFromPatterns(ctx.combined);
     if (guessed) return { key: guessed, sig };
     return { key: null, sig };
@@ -368,7 +393,8 @@
 
     const labelEl = document.createElement("div");
     labelEl.className = "jaf-learn-label";
-    labelEl.textContent = ctx.label || ctx.name || ctx.placeholder || ctx.id || "Untitled field";
+    const fallbackLabel = cleanLabelText(ctx.name) || cleanLabelText(ctx.placeholder) || cleanLabelText(ctx.id);
+    labelEl.textContent = ctx.label || fallbackLabel || "Untitled field";
     row.appendChild(labelEl);
 
     const valueInput = document.createElement("input");
@@ -381,7 +407,7 @@
     appendSchemaOptions(select);
     row.appendChild(select);
 
-    return { row, labelEl, valueInput, select, sig: signature(ctx), guessed: null, file: isFileField(el) ? (el.files && el.files[0] ? el.files[0] : null) : null };
+    return { row, labelEl, valueInput, select, sig: signature(ctx), guessed: null, el, file: isFileField(el) ? (el.files && el.files[0] ? el.files[0] : null) : null };
   }
 
   function groupSchemaOptions() {
@@ -417,7 +443,7 @@
     const { learnedMappings, fullSchema } = await getStorage();
     const entries = getFilledFields().map(el => {
       const ctx = getFieldContext(el);
-      const { key } = resolveKeyForField(ctx, learnedMappings);
+      const { key } = resolveKeyForField(ctx, learnedMappings, fullSchema);
       const e = buildLearnRow(el, ctx);
       // pre-select the guessed key when we can resolve one
       if (key && fullSchema.some(item => item.key === key)) e.select.value = key;
@@ -485,8 +511,9 @@
       if (!e.row.isConnected) continue;
       const value = e.valueInput.value.trim();
       let key = e.select.value;
+      const isNew = key === "__new__";
       if (!value && !e.file) continue;
-      if (key === "__new__") {
+      if (isNew) {
         key = "custom_" + Date.now() + "_" + idx;
         if (!customSchema.find(c => c.key === key)) {
           customSchema.push({ key, label: e.labelEl.textContent.trim() || "Custom field", group: "Custom" });
@@ -497,6 +524,12 @@
         profile[key] = await fileToStoredValue(e.file);
       } else {
         profile[key] = value;
+      }
+      if (!isNew && profile[key] && e.el) {
+        await fillField(e.el, profile[key]);
+      }
+      if (key.startsWith("custom_")) {
+        profile[key + "__label"] = e.labelEl.textContent.trim() || key;
       }
       if (!learned[DOMAIN]) learned[DOMAIN] = {};
       if (!learned["_global"]) learned["_global"] = {};
@@ -523,7 +556,7 @@
 
     for (const el of fields) {
       const ctx = getFieldContext(el);
-      const { key } = resolveKeyForField(ctx, learnedMappings);
+      const { key } = resolveKeyForField(ctx, learnedMappings, fullSchema);
       if (key && profile[key]) {
         const ok = await fillField(el, profile[key]);
         if (ok) filledCount++;

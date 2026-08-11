@@ -296,7 +296,7 @@ function createCustomSection(profile) {
     valInput.type = "text";
     valInput.className = "field-input";
     valInput.placeholder = "Type the value";
-    valInput.value = entry.value || "";
+    valInput.value = entry.value && typeof entry.value === "object" ? "" : (entry.value || "");
     valInput.addEventListener("input", () => { customEntries[idx].value = valInput.value; });
 
     const removeBtn = document.createElement("button");
@@ -373,13 +373,15 @@ function renderDossier(profile) {
 }
 
 function loadProfile() {
-  chrome.storage.local.get(["profile"], (data) => {
+  chrome.storage.local.get(["profile", "customSchema"], (data) => {
     const profile = data.profile || {};
     loadedProfile = profile;
     if (!activeSectionKey) activeSectionKey = "Basics";
+    const labelMap = {};
+    (data.customSchema || []).forEach(c => { labelMap[c.key] = c.label; });
     customEntries = Object.keys(profile)
-      .filter(k => k.startsWith("custom_"))
-      .map(k => ({ key: k, label: profile[k + "__label"] || k, value: profile[k] }))
+      .filter(k => k.startsWith("custom_") && !k.endsWith("__label"))
+      .map(k => ({ key: k, label: profile[k + "__label"] || labelMap[k] || k, value: profile[k] }))
       .filter((v, i, arr) => arr.findIndex(x => x.key === v.key) === i);
     renderDossier(profile);
   });
@@ -405,10 +407,17 @@ async function collectProfileFromForm(existingProfile) {
   }
   customEntries.forEach(entry => {
     if (entry.label && entry.label.trim()) {
-      profile[entry.key] = entry.value.trim();
+      profile[entry.key] = entry.value && typeof entry.value === "object" ? entry.value : String(entry.value || "").trim();
       profile[entry.key + "__label"] = entry.label.trim();
     }
   });
+  const valueKeys = new Set(customEntries.map(e => e.key));
+  for (const k of Object.keys(profile)) {
+    if (k.startsWith("custom_") && k.endsWith("__label")) {
+      const base = k.slice(0, -"__label".length);
+      if (!valueKeys.has(base)) delete profile[k];
+    }
+  }
   return profile;
 }
 
