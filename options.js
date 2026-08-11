@@ -3,6 +3,31 @@ const customFieldsEl = document.getElementById("customFields");
 const saveStatus = document.getElementById("saveStatus");
 
 let customEntries = []; // {key, value}
+let loadedProfile = {};
+
+function isStoredFileValue(value) {
+  return !!(value && typeof value === "object" && value.dataUrl && value.name);
+}
+
+function fileToStoredValue(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        name: file.name,
+        type: file.type || "application/octet-stream",
+        size: file.size,
+        dataUrl: String(reader.result)
+      });
+    };
+    reader.onerror = () => reject(reader.error || new Error("Unable to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function storedFileLabel(value) {
+  return isStoredFileValue(value) ? value.name : "No file saved yet.";
+}
 
 function groupSchema() {
   const groups = {};
@@ -34,14 +59,30 @@ function renderForm(profile) {
       let input;
       if (item.key === "coverLetterText") {
         input = document.createElement("textarea");
+      } else if (item.key === "resumeFile") {
+        input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       } else {
         input = document.createElement("input");
         input.type = "text";
       }
       input.id = "f_" + item.key;
       input.dataset.key = item.key;
-      input.value = profile[item.key] || "";
+      if (input.type !== "file") {
+        input.value = profile[item.key] && !isStoredFileValue(profile[item.key]) ? profile[item.key] : "";
+      }
       row.appendChild(input);
+
+      if (item.key === "resumeFile") {
+        const fileMeta = document.createElement("div");
+        fileMeta.className = "file-meta";
+        fileMeta.textContent = storedFileLabel(profile[item.key]);
+        input.addEventListener("change", () => {
+          fileMeta.textContent = input.files && input.files[0] ? input.files[0].name : storedFileLabel(profile[item.key]);
+        });
+        row.appendChild(fileMeta);
+      }
       groupEl.appendChild(row);
     });
     formGroupsEl.appendChild(groupEl);
@@ -88,6 +129,7 @@ document.getElementById("addCustomBtn").addEventListener("click", () => {
 function loadProfile() {
   chrome.storage.local.get(["profile"], (data) => {
     const profile = data.profile || {};
+    loadedProfile = profile;
     renderForm(profile);
     customEntries = Object.keys(profile)
       .filter(k => k.startsWith("custom_"))
@@ -99,11 +141,22 @@ function loadProfile() {
 
 // Also update PROFILE_SCHEMA-visible custom entries so content.js dropdown can see them.
 // We store custom field labels in profile under `${key}__label`.
-function collectProfileFromForm() {
+async function collectProfileFromForm(existingProfile) {
   const profile = {};
-  formGroupsEl.querySelectorAll("input[data-key], textarea[data-key]").forEach(el => {
-    profile[el.dataset.key] = el.value.trim();
-  });
+  const fields = Array.from(formGroupsEl.querySelectorAll("input[data-key], textarea[data-key]"));
+  for (const el of fields) {
+    const key = el.dataset.key;
+    if (el.type === "file") {
+      const file = el.files && el.files[0];
+      if (file) {
+        profile[key] = await fileToStoredValue(file);
+      } else if (isStoredFileValue(existingProfile[key])) {
+        profile[key] = existingProfile[key];
+      }
+    } else {
+      profile[key] = el.value.trim();
+    }
+  }
   customEntries.forEach(entry => {
     if (entry.label && entry.label.trim()) {
       profile[entry.key] = entry.value.trim();
@@ -113,8 +166,8 @@ function collectProfileFromForm() {
   return profile;
 }
 
-document.getElementById("saveBtn").addEventListener("click", () => {
-  const profile = collectProfileFromForm();
+document.getElementById("saveBtn").addEventListener("click", async () => {
+  const profile = await collectProfileFromForm(loadedProfile);
 
   // Extend PROFILE_SCHEMA (in-memory, this session) so custom fields are pickable
   // in the manual-mapping dropdown on other pages too. Persisted separately.

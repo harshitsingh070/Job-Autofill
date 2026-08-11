@@ -34,8 +34,10 @@ A Chrome/Edge extension that remembers your details and fills them into job & in
 ## Notes & limits
 
 - It never overwrites text you've already typed into a field.
-- Dropdown/select fields are matched by comparing your saved value against the option text.
-- Checkboxes, radio buttons, and file uploads (like resume attachments) aren't auto-filled — those need manual handling per site.
+- Dropdown/select fields are matched by comparing your saved value against the option text, including optional dropdowns where the first real option is selected.
+- Checkboxes and radio buttons are auto-filled when your profile has a matching yes/no or option value.
+- You can also save a resume file in your profile, and JOBFILL will attach it to compatible file inputs on supported sites.
+- File uploads are stored locally in browser storage, so very large files may hit extension storage limits.
 - All data stays in your browser's local storage — nothing is sent anywhere.
 - "Forget mappings for this site" (in the popup) resets learned mappings if a site changes its form.
 

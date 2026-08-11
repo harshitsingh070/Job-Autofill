@@ -77,10 +77,63 @@
 
   function isFillableField(el) {
     if (el.disabled || el.readOnly) return false;
-    if (el.type && ["hidden", "submit", "button", "checkbox", "radio", "file", "image", "reset"].includes(el.type)) return false;
+    if (el.type && ["hidden", "submit", "button", "image", "reset"].includes(el.type)) return false;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return false;
     return true;
+  }
+
+  function isCheckboxField(el) {
+    return el.tagName === "INPUT" && el.type === "checkbox";
+  }
+
+  function isRadioField(el) {
+    return el.tagName === "INPUT" && el.type === "radio";
+  }
+
+  function isFileField(el) {
+    return el.tagName === "INPUT" && el.type === "file";
+  }
+
+  function parseBooleanLikeValue(value) {
+    const norm = normalize(value);
+    if (["true", "yes", "y", "1", "checked", "on", "selected"].includes(norm)) return true;
+    if (["false", "no", "n", "0", "unchecked", "off"].includes(norm)) return false;
+    return null;
+  }
+
+  function isPlaceholderSelectOption(option) {
+    if (!option) return true;
+    if (option.disabled) return true;
+    const text = normalize(option.text);
+    const value = normalize(option.value);
+    if (!text && !value) return true;
+    return ["select one", "select", "choose one", "choose", "please select", "please choose", "optional", "n a", "not applicable"].some(term =>
+      text === term || value === term || text.includes(term) || value.includes(term)
+    );
+  }
+
+  function isFilledSelectField(el) {
+    const option = el.options && el.options[el.selectedIndex];
+    if (!option) return false;
+    if (!String(el.value || "").trim()) return false;
+    if (el.selectedIndex === 0 && isPlaceholderSelectOption(option)) return false;
+    return true;
+  }
+
+  function getFieldLearnValue(el) {
+    if (el.tagName === "SELECT") return el.options[el.selectedIndex]?.text || el.value || "";
+    if (isCheckboxField(el)) return el.value && el.value !== "on" ? el.value : "checked";
+    if (isRadioField(el)) return getLabelText(el) || (el.value && el.value !== "on" ? el.value : "selected");
+    if (isFileField(el)) return el.files && el.files[0] ? el.files[0].name : "";
+    return el.value;
+  }
+
+  function isFieldEmpty(el) {
+    if (isCheckboxField(el) || isRadioField(el)) return !el.checked;
+    if (isFileField(el)) return !el.files || el.files.length === 0;
+    if (el.tagName === "SELECT") return !isFilledSelectField(el);
+    return !String(el.value || "").trim();
   }
 
   function getAllFields() {
@@ -102,8 +155,71 @@
     return false;
   }
 
-  function fillField(el, value) {
+  function fillCheckboxField(el, value) {
+    const parsed = parseBooleanLikeValue(value);
+    if (parsed === null) return false;
+    if (el.checked === parsed) return false;
+    el.checked = parsed;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
+  function fillRadioField(el, value) {
+    if (!value) return false;
+    const normVal = normalize(value);
+    const candidates = [el.value, getLabelText(el), el.id, el.name].map(normalize).filter(Boolean);
+    if (!candidates.some(candidate => candidate === normVal || candidate.includes(normVal) || normVal.includes(candidate))) return false;
+    if (el.checked) return false;
+    el.checked = true;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
+  function storedFileToFile(stored) {
+    if (!stored) return Promise.resolve(null);
+    if (stored instanceof File) return Promise.resolve(stored);
+    if (stored.dataUrl && stored.name) {
+      return fetch(stored.dataUrl)
+        .then(response => response.blob())
+        .then(blob => new File([blob], stored.name, { type: stored.type || blob.type || "application/octet-stream" }));
+    }
+    return Promise.resolve(null);
+  }
+
+  function fileToStoredValue(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve({
+          name: file.name,
+          type: file.type || "application/octet-stream",
+          size: file.size,
+          dataUrl: String(reader.result)
+        });
+      };
+      reader.onerror = () => reject(reader.error || new Error("Unable to read file"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function fillFileField(el, value) {
+    const file = await storedFileToFile(value);
+    if (!file) return false;
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    el.files = dataTransfer.files;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
+  async function fillField(el, value) {
     if (value === undefined || value === null || String(value).trim() === "") return false;
+    if (isCheckboxField(el)) return fillCheckboxField(el, value);
+    if (isRadioField(el)) return fillRadioField(el, value);
+    if (isFileField(el)) return fillFileField(el, value);
     if (el.tagName === "SELECT") return fillSelectField(el, value);
     if (el.value && String(el.value).trim() !== "") return false; // don't overwrite existing content
     nativeSetValue(el, value);
@@ -174,13 +290,13 @@
           const opt = document.createElement("div");
           opt.className = "jaf-dropdown-item";
           opt.textContent = item.label;
-          opt.addEventListener("click", () => {
-            chrome.storage.local.get(["profile"], data => {
+          opt.addEventListener("click", async () => {
+            chrome.storage.local.get(["profile"], async data => {
               const profile = data.profile || {};
               const value = profile[item.key];
               const sig = signature(ctx);
               saveLearnedMapping(DOMAIN, sig, item.key);
-              if (value) fillField(el, value);
+              if (value) await fillField(el, value);
               removeAllBadges();
             });
           });
@@ -216,8 +332,7 @@
   function getFilledFields() {
     return getAllFields().filter(el => {
       if (el.disabled) return false;
-      if (el.tagName === "SELECT") return el.selectedIndex > 0 && String(el.value || "").trim() !== "";
-      return String(el.value || "").trim() !== "";
+      return !isFieldEmpty(el);
     });
   }
 
@@ -232,7 +347,7 @@
 
     const valueInput = document.createElement("input");
     valueInput.className = "jaf-learn-value";
-    valueInput.value = el.tagName === "SELECT" ? el.options[el.selectedIndex]?.text : el.value;
+    valueInput.value = getFieldLearnValue(el);
     row.appendChild(valueInput);
 
     const select = document.createElement("select");
@@ -240,7 +355,7 @@
     appendSchemaOptions(select);
     row.appendChild(select);
 
-    return { row, labelEl, valueInput, select, sig: signature(ctx), guessed: null };
+    return { row, labelEl, valueInput, select, sig: signature(ctx), guessed: null, file: isFileField(el) ? (el.files && el.files[0] ? el.files[0] : null) : null };
   }
 
   function groupSchemaOptions() {
@@ -340,18 +455,20 @@
     let savedCount = 0;
     let createdCount = 0;
 
-    entries.forEach((e, idx) => {
-      if (!e.row.isConnected) return;
+    for (const [idx, e] of entries.entries()) {
+      if (!e.row.isConnected) continue;
       const value = e.valueInput.value.trim();
-      if (!value) return;
       let key = e.select.value;
+      if (!value && !e.file) continue;
       if (key === "__new__") {
         key = "custom_" + Date.now() + "_" + idx;
-        profile[key] = value;
         if (!customSchema.find(c => c.key === key)) {
           customSchema.push({ key, label: e.labelEl.textContent.trim() || "Custom field", group: "Custom" });
         }
         createdCount++;
+      }
+      if (e.file) {
+        profile[key] = await fileToStoredValue(e.file);
       } else {
         profile[key] = value;
       }
@@ -360,7 +477,7 @@
       learned[DOMAIN][e.sig] = key;
       learned["_global"][e.sig] = key;
       savedCount++;
-    });
+    }
 
     if (savedCount > 0) {
       await new Promise(resolve => chrome.storage.local.set({ profile, learnedMappings: learned, customSchema }, resolve));
@@ -381,9 +498,9 @@
       const ctx = getFieldContext(el);
       const { key } = resolveKeyForField(ctx, learnedMappings);
       if (key && profile[key]) {
-        const ok = fillField(el, profile[key]);
+        const ok = await fillField(el, profile[key]);
         if (ok) filledCount++;
-      } else if (!el.value) {
+      } else if (isFieldEmpty(el)) {
         if (hasProfileData) {
           unmatchedCount++;
           addManualBadge(el, ctx, fullSchema, profile);

@@ -25,6 +25,7 @@ const PROFILE_SCHEMA = [
   { key: "currentTitle", label: "Current job title", group: "Experience" },
   { key: "yearsExperience", label: "Years of experience", group: "Experience" },
   { key: "resumeUrl", label: "Resume link (Drive/Dropbox URL)", group: "Documents" },
+  { key: "resumeFile", label: "Resume file (PDF / DOC / DOCX)", group: "Documents" },
   { key: "coverLetterText", label: "Cover letter (short, reusable)", group: "Documents" },
   { key: "workAuthorization", label: "Are you authorized to work in this country? (Yes/No)", group: "Eligibility" },
   { key: "sponsorshipRequired", label: "Will you need visa sponsorship? (Yes/No)", group: "Eligibility" },
