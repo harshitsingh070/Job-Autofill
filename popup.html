@@ -8,32 +8,26 @@
   <div class="wrap">
     <div class="hero">
       <div class="brand">
-        <img src="autofill-logo.png" alt="Logo" class="logo" />
+        <div class="stamp-mark" aria-hidden="true">JF</div>
         <div>
-          <p class="eyebrow">Job application helper</p>
+          <p class="eyebrow">Application desk</p>
           <h1>JOBFILL</h1>
         </div>
       </div>
-      <p class="hero-copy">Autofill forms, learn new fields, and keep your profile ready for the next application.</p>
+      <p class="hero-copy">Fill applications, log new fields, and keep your dossier ready for the next form.</p>
     </div>
     <div class="action-card">
-      <button id="fillBtn" class="primary" aria-label="Autofill this page" title="Autofill this page">⚡ Autofill this page</button>
+      <button id="fillBtn" class="primary" aria-label="Autofill this page" title="Autofill this page"><span class="btn-icon btn-icon--stamp">↯</span> Autofill this page</button>
       <div id="status" class="status"></div>
-      <button id="learnBtn" class="secondary learn" aria-label="Learn mappings from this form" title="Learn mappings from this form">📥 Learn from this form</button>
+      <button id="learnBtn" class="secondary learn" aria-label="Learn mappings from this form" title="Learn mappings from this form"><span class="btn-icon btn-icon--ink">⌁</span> Learn from this form</button>
+      <div class="note-block">
+        <div class="note-label">Unmatched fields</div>
+        <p>Use the stamp badge on the page to map a field once, then reuse it next time.</p>
+      </div>
     </div>
-    <div class="row">
-      <button id="editProfileBtn" class="secondary" aria-label="Edit profile">Edit my profile</button>
+    <div class="link-row">
+      <button id="editProfileBtn" class="link" aria-label="Edit profile">Edit my profile</button>
       <button id="clearSiteBtn" class="link" aria-label="Forget mappings for this site">Forget mappings for this site</button>
-    </div>
-    <div class="tip-grid">
-      <div class="tip-card">
-        <span class="tip-kicker">Unmatched fields</span>
-        <p>Use the "+" badge to map a field once and remember it for next time.</p>
-      </div>
-      <div class="tip-card">
-        <span class="tip-kicker">Best results</span>
-        <p>Keep your profile updated with your latest resume, phone, and links.</p>
-      </div>
     </div>
   </div>
   <script src="popup.js"></script>

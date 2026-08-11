@@ -8,29 +8,25 @@
 <body>
   <div class="page-bg"></div>
   <div class="container">
-    <header class="page-header">
-      <div>
+    <header class="dossier-header">
+      <div class="header-copy">
         <p class="eyebrow">Personal profile</p>
-        <h1>My Profile</h1>
-        <p class="sub">Fill this out once. The extension uses it to autofill job & internship applications.</p>
+        <h1>My Dossier</h1>
+        <p class="sub">Fill this once. It's stored on this device and used to complete applications automatically.</p>
       </div>
-      <div class="header-card">
-        <span class="header-label">Storage</span>
-        <strong>Saved locally in your browser</strong>
+      <div class="header-actions">
+        <div class="header-card">
+          <span class="header-label">Storage</span>
+          <strong>Saved locally in your browser</strong>
+        </div>
+        <button id="saveBtn" class="save-btn">Save profile</button>
+        <span id="saveStatus" class="save-status"></span>
       </div>
     </header>
-    <div id="formGroups" class="stack"></div>
 
-    <div class="custom-section">
-      <h2>Custom fields</h2>
-      <p class="sub">Add anything not covered above (e.g. "Why this company?", visa type, etc). These also show up when mapping unmatched fields.</p>
-      <div id="customFields"></div>
-      <button id="addCustomBtn" class="secondary">+ Add custom field</button>
-    </div>
-
-    <div class="save-bar">
-      <button id="saveBtn" class="primary">Save profile</button>
-      <span id="saveStatus"></span>
+    <div class="dossier-layout">
+      <nav class="section-rail" id="sectionRail" aria-label="Profile sections"></nav>
+      <main class="section-page" id="sectionPage"></main>
     </div>
   </div>
   <script src="schema.js"></script>

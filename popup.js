@@ -17,7 +17,7 @@ async function getActiveTab() {
 }
 
 document.getElementById("fillBtn").addEventListener("click", async () => {
-  setStatusWithTimeout("Filling...");
+  setStatusWithTimeout("Filing page...");
   const tab = await getActiveTab();
   if (!tab || !tab.id) { setStatusWithTimeout("No active tab found."); return; }
   chrome.tabs.sendMessage(tab.id, { type: "AUTOFILL" }, (response) => {
@@ -30,13 +30,13 @@ document.getElementById("fillBtn").addEventListener("click", async () => {
     if (filledCount === 0 && unmatchedCount === 0) {
       setStatusWithTimeout("No fillable fields found on this page.");
     } else {
-      setStatusWithTimeout(`Filled ${filledCount} field(s). ${unmatchedCount} need mapping — look for the “+” badges.`);
+      setStatusWithTimeout(`Filed ${filledCount} field(s). ${unmatchedCount} need mapping.`);
     }
   });
 });
 
 document.getElementById("learnBtn").addEventListener("click", async () => {
-  setStatusWithTimeout("Scanning form...");
+  setStatusWithTimeout("Checking form...");
   const tab = await getActiveTab();
   if (!tab || !tab.id) { setStatusWithTimeout("No active tab found."); return; }
   chrome.tabs.sendMessage(tab.id, { type: "OPEN_LEARN_PANEL" }, (response) => {
@@ -45,10 +45,10 @@ document.getElementById("learnBtn").addEventListener("click", async () => {
       return;
     }
     if (!response || response.fields === 0) {
-      setStatusWithTimeout("No filled fields found. Type into the form first, then click again.");
+      setStatusWithTimeout("No filled fields found. Complete the form first, then try again.");
       return;
     }
-    setStatusWithTimeout(`Found ${response.fields} filled field(s) on this page. Choose where to save each one.`);
+    setStatusWithTimeout(`We found ${response.fields} fields. Match each one below so we can fill it automatically next time.`);
   });
 });
 
@@ -64,7 +64,7 @@ document.getElementById("clearSiteBtn").addEventListener("click", async () => {
     const learned = data.learnedMappings || {};
     delete learned[domain];
     chrome.storage.local.set({ learnedMappings: learned }, () => {
-      setStatusWithTimeout(`Forgot learned mappings for ${domain}.`);
+      setStatusWithTimeout(`Cleared learned mappings for ${domain}.`);
     });
   });
 });

@@ -136,6 +136,28 @@
     return !String(el.value || "").trim();
   }
 
+  function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function showStampCue(targetEl) {
+    if (!targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    const cue = document.createElement("div");
+    cue.className = "jaf-stamp-cue";
+    cue.style.left = window.scrollX + rect.right - 14 + "px";
+    cue.style.top = window.scrollY + rect.top + 10 + "px";
+    document.body.appendChild(cue);
+
+    if (prefersReducedMotion()) {
+      setTimeout(() => cue.remove(), 120);
+      return;
+    }
+
+    requestAnimationFrame(() => cue.classList.add("is-visible"));
+    setTimeout(() => cue.remove(), 180);
+  }
+
   function getAllFields() {
     const els = Array.from(document.querySelectorAll("input, textarea, select"));
     return els.filter(isFillableField);
@@ -162,6 +184,7 @@
     el.checked = parsed;
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
+    showStampCue(el);
     return true;
   }
 
@@ -174,6 +197,7 @@
     el.checked = true;
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
+    showStampCue(el);
     return true;
   }
 
@@ -212,6 +236,7 @@
     el.files = dataTransfer.files;
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
+    showStampCue(el);
     return true;
   }
 
@@ -223,6 +248,7 @@
     if (el.tagName === "SELECT") return fillSelectField(el, value);
     if (el.value && String(el.value).trim() !== "") return false; // don't overwrite existing content
     nativeSetValue(el, value);
+    showStampCue(el);
     return true;
   }
 
@@ -407,7 +433,7 @@
     header.className = "jaf-learn-header";
     const title = document.createElement("span");
     title.className = "jaf-learn-title";
-    title.textContent = "Learn from this form";
+    title.textContent = "New entry detected";
     const close = document.createElement("button");
     close.className = "jaf-learn-close";
     close.textContent = "✕";
@@ -418,7 +444,7 @@
 
     const sub = document.createElement("p");
     sub.className = "jaf-learn-sub";
-    sub.textContent = `Found ${entries.length} filled field(s). Pick where each should be saved — it will autofill the same fields next time.`;
+    sub.textContent = `We found ${entries.length} fields. Match each one below so we can fill it automatically next time.`;
     panel.appendChild(sub);
 
     const body = document.createElement("div");
@@ -430,7 +456,7 @@
     footer.className = "jaf-learn-footer";
     const saveBtn = document.createElement("button");
     saveBtn.className = "jaf-learn-save";
-    saveBtn.textContent = "✓ Save to my profile";
+    saveBtn.textContent = "Confirm & save";
     const statusEl = document.createElement("span");
     statusEl.className = "jaf-learn-status";
     footer.appendChild(saveBtn);
@@ -476,6 +502,7 @@
       if (!learned["_global"]) learned["_global"] = {};
       learned[DOMAIN][e.sig] = key;
       learned["_global"][e.sig] = key;
+      showStampCue(e.row);
       savedCount++;
     }
 
