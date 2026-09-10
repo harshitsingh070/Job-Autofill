@@ -387,7 +387,7 @@
     });
   }
 
-  function buildLearnRow(el, ctx) {
+  function buildLearnRow(el, ctx, schema) {
     const row = document.createElement("div");
     row.className = "jaf-learn-row";
 
@@ -404,27 +404,27 @@
 
     const select = document.createElement("select");
     select.className = "jaf-learn-select";
-    appendSchemaOptions(select);
+    appendSchemaOptions(select, schema);
     row.appendChild(select);
 
     return { row, labelEl, valueInput, select, sig: signature(ctx), guessed: null, el, file: isFileField(el) ? (el.files && el.files[0] ? el.files[0] : null) : null };
   }
 
-  function groupSchemaOptions() {
+  function groupSchemaOptions(schema) {
     const groups = {};
-    PROFILE_SCHEMA.forEach(item => {
+    schema.forEach(item => {
       if (!groups[item.group]) groups[item.group] = [];
       groups[item.group].push(item);
     });
     return groups;
   }
 
-  function appendSchemaOptions(select) {
+  function appendSchemaOptions(select, schema = PROFILE_SCHEMA) {
     const newOpt = document.createElement("option");
     newOpt.value = "__new__";
     newOpt.textContent = "➕ New profile field (auto-create)";
     select.appendChild(newOpt);
-    const groups = groupSchemaOptions();
+    const groups = groupSchemaOptions(schema);
     Object.keys(groups).forEach(groupName => {
       const og = document.createElement("optgroup");
       og.label = groupName;
@@ -444,7 +444,7 @@
     const entries = getFilledFields().map(el => {
       const ctx = getFieldContext(el);
       const { key } = resolveKeyForField(ctx, learnedMappings, fullSchema);
-      const e = buildLearnRow(el, ctx);
+      const e = buildLearnRow(el, ctx, fullSchema);
       // pre-select the guessed key when we can resolve one
       if (key && fullSchema.some(item => item.key === key)) e.select.value = key;
       return e;
