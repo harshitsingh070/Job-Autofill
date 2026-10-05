@@ -37,15 +37,58 @@ function sendMessageToFrame(tabId, frameId, message) {
   });
 }
 
+function isRestrictedUrl(url) {
+  if (!url) return true;
+  return /^(chrome:|edge:|about:|chrome-extension:|moz-extension:|view-source:|data:|file:)/i.test(url) ||
+    /^https:\/\/(chrome\.google\.com\/webstore|chromewebstore\.google\.com)/i.test(url);
+}
+
+async function ensureContentScripts(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      files: ["schema.js", "content.js"]
+    });
+    // Give the freshly injected content script a tick to register its listener.
+    await new Promise(resolve => setTimeout(resolve, 150));
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function broadcast(tabId, message) {
+  const frameIds = await getFrameIds(tabId);
+  let responses = await Promise.all(frameIds.map(frameId => sendMessageToFrame(tabId, frameId, message)));
+  let valid = responses.filter(Boolean);
+  if (valid.length > 0) return valid;
+
+  // Content script probably isn't running in this tab yet (tab was open
+  // before install/update, or a new iframe/SPA route appeared).
+  // Inject it on demand and retry once instead of asking for a reload.
+  const injected = await ensureContentScripts(tabId);
+  if (!injected) return [];
+  responses = await Promise.all(frameIds.map(frameId => sendMessageToFrame(tabId, frameId, message)));
+  valid = responses.filter(Boolean);
+  if (valid.length > 0) return valid;
+
+  // Frames may have changed after injection; re-enumerate and try the main frame.
+  const retryFrames = await getFrameIds(tabId);
+  responses = await Promise.all(retryFrames.map(frameId => sendMessageToFrame(tabId, frameId, message)));
+  return responses.filter(Boolean);
+}
+
 document.getElementById("fillBtn").addEventListener("click", async () => {
-  setStatusWithTimeout("Filing page...");
+  setStatusWithTimeout("Filling page...");
   const tab = await getActiveTab();
-  if (!tab || !tab.id) { setStatusWithTimeout("No active tab found."); return; }
-  const frameIds = await getFrameIds(tab.id);
-  const responses = await Promise.all(frameIds.map(frameId => sendMessageToFrame(tab.id, frameId, { type: "AUTOFILL" })));
-  const validResponses = responses.filter(Boolean);
+  if (!tab || tab.id === undefined) { setStatusWithTimeout("No active tab found."); return; }
+  if (isRestrictedUrl(tab.url)) {
+    setStatusWithTimeout("This page doesn't allow extensions (e.g. Chrome settings, Web Store). Open the job form in a normal tab.");
+    return;
+  }
+  const validResponses = await broadcast(tab.id, { type: "AUTOFILL" });
   if (validResponses.length === 0) {
-    setStatusWithTimeout("Couldn't reach this page. Try reloading it.");
+    setStatusWithTimeout("Still can't reach this page. Please reload it once, then try again.");
     return;
   }
   const filledCount = validResponses.reduce((total, response) => total + (response.filledCount || 0), 0);
@@ -60,15 +103,25 @@ document.getElementById("fillBtn").addEventListener("click", async () => {
 document.getElementById("learnBtn").addEventListener("click", async () => {
   setStatusWithTimeout("Checking form...");
   const tab = await getActiveTab();
-  if (!tab || !tab.id) { setStatusWithTimeout("No active tab found."); return; }
+  if (!tab || tab.id === undefined) { setStatusWithTimeout("No active tab found."); return; }
+  if (isRestrictedUrl(tab.url)) {
+    setStatusWithTimeout("This page doesn't allow extensions (e.g. Chrome settings, Web Store). Open the job form in a normal tab.");
+    return;
+  }
+  // Broadcast to all frames, but prefer the first frame that actually has fields.
   const frameIds = await getFrameIds(tab.id);
-  let response = null;
-  for (const frameId of frameIds) {
-    response = await sendMessageToFrame(tab.id, frameId, { type: "OPEN_LEARN_PANEL" });
-    if (response && response.fields > 0) break;
+  let responses = await Promise.all(frameIds.map(frameId => sendMessageToFrame(tab.id, frameId, { type: "OPEN_LEARN_PANEL" })));
+  let response = responses.find(r => r && r.fields > 0) || responses.find(Boolean);
+  if (!response) {
+    const injected = await ensureContentScripts(tab.id);
+    if (injected) {
+      const retryFrames = await getFrameIds(tab.id);
+      responses = await Promise.all(retryFrames.map(frameId => sendMessageToFrame(tab.id, frameId, { type: "OPEN_LEARN_PANEL" })));
+      response = responses.find(r => r && r.fields > 0) || responses.find(Boolean);
+    }
   }
   if (!response) {
-    setStatusWithTimeout("Couldn't reach this page. Try reloading it.");
+    setStatusWithTimeout("Still can't reach this page. Please reload it once, then try again.");
     return;
   }
   if (response.fields === 0) {

@@ -1,4 +1,11 @@
 (function () {
+  // Guard against double-injection: the manifest injects this automatically,
+  // and popup.js may inject it again on demand via chrome.scripting for tabs
+  // that were open before install/update. Without this, listeners/observers
+  // would register twice.
+  if (window.__JOBFILL_LOADED__) return;
+  window.__JOBFILL_LOADED__ = true;
+
   const DOMAIN = location.hostname;
 
   // Performance guard: exit early on pages without form inputs
