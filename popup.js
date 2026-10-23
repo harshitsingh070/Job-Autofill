@@ -27,13 +27,17 @@ async function getFrameIds(tabId) {
 
 function sendMessageToFrame(tabId, frameId, message) {
   return new Promise(resolve => {
-    chrome.tabs.sendMessage(tabId, message, { frameId }, response => {
-      if (chrome.runtime.lastError) {
-        resolve(null);
-        return;
-      }
-      resolve(response || null);
-    });
+    try {
+      chrome.tabs.sendMessage(tabId, message, { frameId }, response => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+        resolve(response || null);
+      });
+    } catch (error) {
+      resolve(null);
+    }
   });
 }
 
@@ -44,38 +48,46 @@ function isRestrictedUrl(url) {
 }
 
 async function ensureContentScripts(tabId) {
+  const files = ["schema.js", "content.js"];
+  // Inject the main frame first: all-frames injection fails as a whole when a
+  // single child frame is inaccessible, which made the popup wrongly claim
+  // the page needed a reload.
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      files: ["schema.js", "content.js"]
-    });
-    // Give the freshly injected content script a tick to register its listener.
-    await new Promise(resolve => setTimeout(resolve, 150));
+    await chrome.scripting.executeScript({ target: { tabId }, files });
     return true;
   } catch (error) {
-    return false;
+    try {
+      await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files });
+      return true;
+    } catch (error2) {
+      return false;
+    }
   }
 }
 
-async function broadcast(tabId, message) {
+async function sendToAllFrames(tabId, message) {
   const frameIds = await getFrameIds(tabId);
-  let responses = await Promise.all(frameIds.map(frameId => sendMessageToFrame(tabId, frameId, message)));
-  let valid = responses.filter(Boolean);
-  if (valid.length > 0) return valid;
+  const ordered = [0, ...frameIds.filter(frameId => frameId !== 0)];
+  const responses = await Promise.all(ordered.map(frameId => sendMessageToFrame(tabId, frameId, message)));
+  return responses.filter(Boolean);
+}
+
+async function broadcast(tabId, message) {
+  let responses = await sendToAllFrames(tabId, message);
+  if (responses.length > 0) return responses;
 
   // Content script probably isn't running in this tab yet (tab was open
   // before install/update, or a new iframe/SPA route appeared).
-  // Inject it on demand and retry once instead of asking for a reload.
+  // Inject it on demand instead of asking for a reload.
   const injected = await ensureContentScripts(tabId);
   if (!injected) return [];
-  responses = await Promise.all(frameIds.map(frameId => sendMessageToFrame(tabId, frameId, message)));
-  valid = responses.filter(Boolean);
-  if (valid.length > 0) return valid;
 
-  // Frames may have changed after injection; re-enumerate and try the main frame.
-  const retryFrames = await getFrameIds(tabId);
-  responses = await Promise.all(retryFrames.map(frameId => sendMessageToFrame(tabId, frameId, message)));
-  return responses.filter(Boolean);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 120));
+    responses = await sendToAllFrames(tabId, message);
+    if (responses.length > 0) return responses;
+  }
+  return responses;
 }
 
 document.getElementById("fillBtn").addEventListener("click", async () => {
@@ -88,16 +100,24 @@ document.getElementById("fillBtn").addEventListener("click", async () => {
   }
   const validResponses = await broadcast(tab.id, { type: "AUTOFILL" });
   if (validResponses.length === 0) {
-    setStatusWithTimeout("Still can't reach this page. Please reload it once, then try again.");
+    setStatusWithTimeout("Still can't reach this page. If it just loaded, wait a moment and try again.");
     return;
   }
   const filledCount = validResponses.reduce((total, response) => total + (response.filledCount || 0), 0);
   const unmatchedCount = validResponses.reduce((total, response) => total + (response.unmatchedCount || 0), 0);
-    if (filledCount === 0 && unmatchedCount === 0) {
+  const totalFields = validResponses.reduce((total, response) => total + (response.totalFields || 0), 0);
+  const hasProfileData = validResponses.some(response => response.hasProfileData);
+  if (filledCount === 0 && unmatchedCount === 0) {
+    if (!hasProfileData) {
+      setStatusWithTimeout("Your profile is empty. Use \"Edit my profile\" to add your details first.");
+    } else if (totalFields === 0) {
       setStatusWithTimeout("No fillable fields found on this page.");
     } else {
-      setStatusWithTimeout(`Filled ${filledCount} field(s). ${unmatchedCount} need mapping.`);
+      setStatusWithTimeout("Nothing to fill — fields are already filled or unsupported.");
     }
+  } else {
+    setStatusWithTimeout(`Filled ${filledCount} field(s). ${unmatchedCount} need mapping.`);
+  }
 });
 
 document.getElementById("learnBtn").addEventListener("click", async () => {
@@ -109,19 +129,18 @@ document.getElementById("learnBtn").addEventListener("click", async () => {
     return;
   }
   // Broadcast to all frames, but prefer the first frame that actually has fields.
-  const frameIds = await getFrameIds(tab.id);
-  let responses = await Promise.all(frameIds.map(frameId => sendMessageToFrame(tab.id, frameId, { type: "OPEN_LEARN_PANEL" })));
+  let responses = await sendToAllFrames(tab.id, { type: "OPEN_LEARN_PANEL" });
   let response = responses.find(r => r && r.fields > 0) || responses.find(Boolean);
   if (!response) {
     const injected = await ensureContentScripts(tab.id);
     if (injected) {
-      const retryFrames = await getFrameIds(tab.id);
-      responses = await Promise.all(retryFrames.map(frameId => sendMessageToFrame(tab.id, frameId, { type: "OPEN_LEARN_PANEL" })));
+      await new Promise(resolve => setTimeout(resolve, 120));
+      responses = await sendToAllFrames(tab.id, { type: "OPEN_LEARN_PANEL" });
       response = responses.find(r => r && r.fields > 0) || responses.find(Boolean);
     }
   }
   if (!response) {
-    setStatusWithTimeout("Still can't reach this page. Please reload it once, then try again.");
+    setStatusWithTimeout("Still can't reach this page. If it just loaded, wait a moment and try again.");
     return;
   }
   if (response.fields === 0) {
@@ -138,12 +157,47 @@ document.getElementById("editProfileBtn").addEventListener("click", () => {
 document.getElementById("clearSiteBtn").addEventListener("click", async () => {
   const tab = await getActiveTab();
   if (!tab || !tab.url) return;
-  const domain = new URL(tab.url).hostname;
+  let domain;
+  try {
+    domain = new URL(tab.url).hostname;
+  } catch (error) {
+    setStatusWithTimeout("Couldn't identify this site.");
+    return;
+  }
   chrome.storage.local.get(["learnedMappings"], (data) => {
     const learned = data.learnedMappings || {};
+    const siteMappings = learned[domain] || {};
     delete learned[domain];
+
+    // Signatures learned on this site are also copied to "_global" so they can
+    // help on similar forms elsewhere. Drop those too, unless another site
+    // still relies on the same signature.
+    if (learned._global) {
+      const otherDomains = Object.keys(learned).filter(key => key !== "_global");
+      Object.keys(siteMappings).forEach(sig => {
+        const usedElsewhere = otherDomains.some(other => learned[other] && learned[other][sig]);
+        if (!usedElsewhere) delete learned._global[sig];
+      });
+    }
+
     chrome.storage.local.set({ learnedMappings: learned }, () => {
       setStatusWithTimeout(`Cleared learned mappings for ${domain}.`);
     });
   });
 });
+
+// Warm up the content script as soon as the popup opens. This means that by
+// the time a button is clicked the page is already reachable, instead of
+// asking the user to reload. Fails silently on restricted pages.
+async function prepareActiveTab() {
+  try {
+    const tab = await getActiveTab();
+    if (!tab || tab.id === undefined || isRestrictedUrl(tab.url)) return;
+    const pings = await sendToAllFrames(tab.id, { type: "PING" });
+    if (pings.length === 0) await ensureContentScripts(tab.id);
+  } catch (error) {
+    // Ignore: broadcast() will retry on the actual button click.
+  }
+}
+
+prepareActiveTab();

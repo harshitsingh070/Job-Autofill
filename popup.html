@@ -5,30 +5,67 @@
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <div class="wrap">
-    <div class="hero">
-      <div class="brand">
-        <div class="stamp-mark" aria-hidden="true">JF</div>
+  <div class="app">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="brand">
+          <span class="brand-mark"><img src="autofill-logo.png" alt="" /></span>
+          <div>
+            <p class="eyebrow">Application desk</p>
+            <h1>JOBFILL</h1>
+          </div>
+        </div>
+        <span class="hero-chip">Private</span>
+      </div>
+      <p class="hero-copy">One click for the boring parts. Your details stay on this device.</p>
+    </header>
+
+    <main class="action-card">
+      <button id="fillBtn" class="primary" type="button" aria-label="Autofill this page" title="Autofill this page">
+        <span class="btn-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z"/></svg>
+        </span>
+        <span class="btn-copy">
+          <span class="btn-title">Autofill this page</span>
+          <span class="btn-sub">Fill every saved field in one pass</span>
+        </span>
+        <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+      </button>
+
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+
+      <button id="learnBtn" class="secondary learn" type="button" aria-label="Learn mappings from this form" title="Learn mappings from this form">
+        <span class="btn-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.2 6.2l2.8 2.8M15 15l2.8 2.8M17.8 6.2 15 9M9 15l-2.8 2.8"/></svg>
+        </span>
+        <span class="btn-copy">
+          <span class="btn-title">Learn from this form</span>
+          <span class="btn-sub">Remember new fields for next time</span>
+        </span>
+      </button>
+
+      <div class="note-block">
+        <span class="note-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.9L12 3.5Z"/></svg>
+        </span>
         <div>
-          <p class="eyebrow">Application desk</p>
-          <h1>JOBFILL</h1>
+          <div class="note-label">Unmatched fields</div>
+          <p>Use the stamp badge on the page to map a field once, then reuse it next time.</p>
         </div>
       </div>
-      <p class="hero-copy">Fill applications, log new fields, and keep your dossier ready for the next form.</p>
-    </div>
-    <div class="action-card">
-      <button id="fillBtn" class="primary" aria-label="Autofill this page" title="Autofill this page"><span class="btn-icon btn-icon--stamp">↯</span> Autofill this page</button>
-      <div id="status" class="status"></div>
-      <button id="learnBtn" class="secondary learn" aria-label="Learn mappings from this form" title="Learn mappings from this form"><span class="btn-icon btn-icon--ink">⌁</span> Learn from this form</button>
-      <div class="note-block">
-        <div class="note-label">Unmatched fields</div>
-        <p>Use the stamp badge on the page to map a field once, then reuse it next time.</p>
-      </div>
-    </div>
-    <div class="link-row">
-      <button id="editProfileBtn" class="link" aria-label="Edit profile">Edit my profile</button>
-      <button id="clearSiteBtn" class="link" aria-label="Forget mappings for this site">Forget mappings for this site</button>
-    </div>
+    </main>
+
+    <footer class="link-row">
+      <button id="editProfileBtn" class="link" type="button" aria-label="Edit profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
+        Edit my profile
+      </button>
+      <button id="clearSiteBtn" class="link" type="button" aria-label="Forget learned mappings for this site">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M6.5 7l.9 12.1a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/></svg>
+        Forget this site
+      </button>
+    </footer>
+    <p class="privacy-note">Saved locally in your browser</p>
   </div>
   <script src="popup.js"></script>
 </body>

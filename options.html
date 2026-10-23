@@ -10,17 +10,23 @@
   <div class="container">
     <header class="dossier-header">
       <div class="header-copy">
-        <p class="eyebrow">Personal profile</p>
-        <h1>My Dossier</h1>
+        <div class="brand-row">
+          <span class="brand-mark"><img src="autofill-logo.png" alt="" /></span>
+          <div>
+            <p class="eyebrow">Personal profile</p>
+            <h1>My Dossier</h1>
+          </div>
+        </div>
         <p class="sub">Fill this once. It's stored on this device and used to complete applications automatically.</p>
       </div>
       <div class="header-actions">
         <div class="header-card">
           <span class="header-label">Storage</span>
           <strong>Saved locally in your browser</strong>
+          <span class="header-meta">Private by default · No account needed</span>
         </div>
-        <button id="saveBtn" class="save-btn">Save profile</button>
-        <span id="saveStatus" class="save-status"></span>
+        <button id="saveBtn" class="save-btn" type="button">Save profile</button>
+        <span id="saveStatus" class="save-status" role="status" aria-live="polite"></span>
       </div>
     </header>
 
