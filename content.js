@@ -8,8 +8,33 @@
   // page has no inputs yet. SPAs (and many job boards) render the form after
   // load; the old early-return here left those tabs unreachable and forced
   // users to reload the page.
-  if (window.__JOBFILL_READY__) return;
+  //
+  // The flag survives an extension update/reload even though the old script
+  // is orphaned and can no longer answer messages. Probe the previous
+  // instance first and only skip when it is still connected to the extension;
+  // otherwise register a fresh one so the popup works without a page reload.
+  if (window.__JOBFILL_READY__) {
+    window.__JOBFILL_ALIVE__ = false;
+    try {
+      window.dispatchEvent(new Event("__jobfill_probe__"));
+    } catch (error) {
+      // Ignore: fall through and re-register.
+    }
+    if (window.__JOBFILL_ALIVE__) return;
+  }
   window.__JOBFILL_READY__ = true;
+
+  // Answers the probe above. Runs in the same isolated world, so a re-injected
+  // copy can detect a live instance synchronously. Check the runtime because
+  // listeners from an orphaned (post-update) script still fire but can no
+  // longer talk to the extension.
+  window.addEventListener("__jobfill_probe__", () => {
+    try {
+      if (chrome.runtime && chrome.runtime.id) window.__JOBFILL_ALIVE__ = true;
+    } catch (error) {
+      // Extension context invalidated: report nothing.
+    }
+  });
 
   const DOMAIN = location.hostname;
   const countryAliases = window.COUNTRY_ALIASES || {};

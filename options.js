@@ -215,6 +215,25 @@ function renderSectionRail(sections, profile) {
   sectionRailEl.appendChild(footer);
 }
 
+// Lets Chrome's saved-address/contact autofill recognise each field, so
+// picking a suggestion fills every address field instead of being ignored.
+const AUTOCOMPLETE_TOKENS = {
+  firstName: "given-name",
+  lastName: "family-name",
+  fullName: "name",
+  email: "email",
+  phone: "tel",
+  addressLine1: "address-line1",
+  addressLine2: "address-line2",
+  city: "address-level2",
+  state: "address-level1",
+  zipCode: "postal-code",
+  country: "country-name",
+  linkedin: "url",
+  github: "url",
+  portfolio: "url"
+};
+
 function createFieldControl(item, profile) {
   const row = document.createElement("article");
   row.className = "field-card";
@@ -238,7 +257,17 @@ function createFieldControl(item, profile) {
   }
   input.id = "f_" + item.key;
   input.dataset.key = item.key;
+  input.name = item.key;
   input.className = item.key === "coverLetterText" ? "field-input field-input--textarea" : "field-input";
+  if (input.type === "text") {
+    input.autocomplete = AUTOCOMPLETE_TOKENS[item.key] || "off";
+    if (item.key === "email") input.type = "email";
+    if (item.key === "phone") input.type = "tel";
+    if (["linkedin", "github", "portfolio"].includes(item.key)) input.type = "url";
+  }
+  if (input.type === "file") {
+    input.autocomplete = "off";
+  }
   if (input.type !== "file") {
     input.value = profile[item.key] && !isStoredFileValue(profile[item.key]) ? profile[item.key] : "";
   }
@@ -353,7 +382,15 @@ function renderSectionPage(sections, profile) {
       const grid = document.createElement("div");
       grid.className = "section-grid";
       section.items.forEach(item => grid.appendChild(createFieldControl(item, profile)));
-      sectionEl.appendChild(grid);
+
+      // A real form let Chrome treat these as one address/contact group, so
+      // selecting an autofill suggestion populates every related field.
+      const form = document.createElement("form");
+      form.autocomplete = "on";
+      form.noValidate = true;
+      form.addEventListener("submit", event => event.preventDefault());
+      form.appendChild(grid);
+      sectionEl.appendChild(form);
     } else {
       sectionEl.appendChild(createCustomSection(profile));
     }
